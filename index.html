@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Menu Dice</title>
+<style>
+  :root{ --ink:#0f172a; --muted:#64748b; --acc:#10b981; --danger:#ef4444; }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font:16px/1.6 system-ui,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;
+    color:var(--ink);
+    background: url("images/food10.jpg") no-repeat center center fixed;
+    background-size: cover; /* ফুল ব্যাকগ্রাউন্ড */
+  }
+  .view{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:28px}
+  .container{width:min(520px,94%); text-align:center; background:rgba(255,255,255,0.8); border-radius:16px; padding:20px;}
+  h1{margin:0 0 14px; font-size:clamp(28px,6vw,42px)}
+  p.sub{margin:6px 0 18px; color:var(--muted)}
+  .btn{display:block; width:90%; max-width:340px; margin:0 auto; padding:14px 18px; border:none; border-radius:14px; cursor:pointer; font-weight:800; letter-spacing:.3px; color:#fff; background:var(--acc); transition:transform .15s, box-shadow .15s}
+  .btn:hover{transform:translateY(-4px); box-shadow:0 6px 14px rgba(0,0,0,.2)}
+  .btn:active{transform:scale(.98)}
+  .btn.danger{background:var(--danger)}
+  .stack{display:flex; flex-direction:column; gap:12px; align-items:center;}
+  .center{text-align:center}
+  .langBox{position:fixed; top:10px; right:10px; z-index:10}
+  select{padding:6px 8px; border-radius:8px; border:1px solid #e5e7eb; font-size:13px; background:#fff}
+  @keyframes fadeUp{from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:translateY(0)}}
+  @keyframes pop{0%{transform:translateY(0)}50%{transform:translateY(-4px)}100%{transform:translateY(0)}}
+  .anim-title{animation:fadeUp .6s ease .1s both}
+  .anim-start{animation:pop 1.6s ease-in-out .4s infinite}
+  .dish{font-size:clamp(32px,7vw,52px); font-weight:900; margin:18px 0;}
+  .hide{display:none}
+  textarea{width:90%; max-width:340px; min-height:110px; border:1px solid #e5e7eb; border-radius:12px; padding:12px; font:16px/1.5 inherit; margin:0 auto 10px; display:block;}
+</style>
+</head>
+<body>
+
+<!-- language -->
+<div class="langBox">
+  <select id="langSel" aria-label="language">
+    <option value="ja">日本語</option>
+    <option value="en">English</option>
+  </select>
+</div>
+
+<!-- Page 1: Top -->
+<section id="v-top" class="view">
+  <div class="container center">
+    <h1 id="appTitle" class="anim-title">献立サイコロ</h1>
+    <p id="appSub" class="sub anim-title">朝・昼・夜の中からランダムに献立を提案します</p>
+    <button id="btnStart" class="btn anim-start">スタート</button>
+  </div>
+</section>
+
+<!-- Page 2: Choose meal -->
+<section id="v-slot" class="view hide">
+  <div class="container">
+    <h1 id="pickTitle">食事の種類を選んでください</h1>
+    <p id="pickHint" class="sub">Breakfast / Lunch / Dinner</p>
+    <div class="stack">
+      <button id="btnBF" class="btn" data-slot="bf">🍙 朝ごはん</button>
+      <button id="btnLU" class="btn" data-slot="lu">🍛 昼ごはん</button>
+      <button id="btnDI" class="btn" data-slot="di">🍣 夜ごはん</button>
+      <button id="backTop" class="btn danger">戻る</button>
+    </div>
+  </div>
+</section>
+
+<!-- Page 3: Input -->
+<section id="v-input" class="view hide">
+  <div class="container">
+    <h1 id="inputTitle">候補を入力（任意）</h1>
+    <p id="inputHelp" class="sub">カンマ / 改行で区切って入力。未入力ならデフォルトから選びます。</p>
+    <textarea id="ta" placeholder="おにぎり, 納豆ごはん&#10;Sushi, Udon"></textarea>
+    <div class="stack">
+      <button id="btnPick" class="btn">抽選</button>
+      <button id="backSlotFromInput" class="btn danger">戻る</button>
+    </div>
+  </div>
+</section>
+
+<!-- Page 4: Result -->
+<section id="v-result" class="view hide">
+  <div class="container">
+    <h1 id="resTitle">Suggestion</h1>
+    <p id="dishHelp" class="sub">Use the “Detail” button to see recipes</p>
+    <div class="dish" id="dishName">—</div>
+    <div class="stack">
+      <a id="btnDetail" class="btn" target="_blank" rel="noopener">Detail</a>
+      <button id="backInput" class="btn danger">戻る</button>
+    </div>
+  </div>
+</section>
+
+<script>
+/* ---------- data ---------- */
+const defaults={bf:["おにぎり","納豆ごはん","玉子焼き","味噌汁"],lu:["カレーライス","うどん","そば","親子丼"],di:["焼き魚定食","餃子","すき焼き","天ぷら"]};
+const allPool=[...defaults.bf,...defaults.lu,...defaults.di];
+const dishEN={"おにぎり":"Onigiri","納豆ごはん":"Natto Rice","玉子焼き":"Tamagoyaki","味噌汁":"Miso Soup","カレーライス":"Curry Rice","うどん":"Udon","そば":"Soba","親子丼":"Oyakodon","焼き魚定食":"Grilled Fish Set","餃子":"Gyoza","すき焼き":"Sukiyaki","天ぷら":"Tempura"};
+
+const T={
+  ja:{
+    appTitle:"今日のごはん",
+    appSub:"朝・昼・夜の中からランダムに献立を提案します",
+    start:"スタート",
+    pickTitle:"食事の種類を選んでください",
+    pickHint:"朝ごはん / 昼ごはん / 夜ごはん",
+    bf:"🍙 朝ごはん", lu:"🍛 昼ごはん", di:"🍣 夜ごはん",
+    back:"戻る",
+    inputTitle:"候補を入力（任意）",
+    inputHelp:"カンマ / 改行で区切って入力。未入力ならデフォルトから選びます。",
+    pick:"抽選",
+    resTitle:"おすすめ結果",
+    help:"レシピを見るには「詳細」ボタンを押してください",
+    detail:"詳細"
+  },
+  en:{
+    appTitle:"Today's Meal",
+    appSub:"Get a random suggestion for Breakfast / Lunch / Dinner",
+    start:"START",
+    pickTitle:"Choose a meal type",
+    pickHint:"Breakfast / Lunch / Dinner",
+    bf:"🍙 Breakfast", lu:"🍛 Lunch", di:"🍣 Dinner",
+    back:"Back",
+    inputTitle:"Enter candidates (optional)",
+    inputHelp:"Comma or newline separated. Empty → use defaults.",
+    pick:"Pick",
+    resTitle:"Suggestion",
+    help:"Use the “Detail” button to see recipes",
+    detail:"Detail"
+  }
+};
+
+let lang="ja",slot="",currentDishJa="",currentDisplayName="";
+const $=id=>document.getElementById(id);
+const views=["v-top","v-slot","v-input","v-result"].map($);
+function show(view){views.forEach(v=>v.classList.add("hide"));view.classList.remove("hide");window.scrollTo({top:0,behavior:"smooth"});}
+function localizedName(jaName){return(lang==="en"&&dishEN[jaName])?dishEN[jaName]:jaName;}
+function updateDetailLink(nameForSearch){const term=nameForSearch+(lang==="ja"?" レシピ":" recipe");$("btnDetail").href="https://www.google.com/search?q="+encodeURIComponent(term);}
+function setLang(l){
+  lang=l; const L=T[l];
+  $("appTitle").textContent=L.appTitle; $("appSub").textContent=L.appSub; $("btnStart").textContent=L.start;
+  $("pickTitle").textContent=L.pickTitle; $("pickHint").textContent=L.pickHint;
+  $("btnBF").textContent=L.bf; $("btnLU").textContent=L.lu; $("btnDI").textContent=L.di;
+  $("backTop").textContent=L.back; $("inputTitle").textContent=L.inputTitle; $("inputHelp").textContent=L.inputHelp;
+  $("btnPick").textContent=L.pick; $("backSlotFromInput").textContent=L.back;
+  $("resTitle").textContent=L.resTitle; $("dishHelp").textContent=L.help; $("btnDetail").textContent=L.detail; $("backInput").textContent=L.back;
+  if(currentDisplayName){const display=currentDishJa?localizedName(currentDishJa):currentDisplayName;$("dishName").textContent=display;updateDetailLink(display);}
+}
+function parseList(v){return v.split(/[\n,、，,]+/).map(s=>s.trim()).filter(Boolean);}
+function pickNow(){
+  const userList=parseList($("ta").value.trim());
+  if(userList.length){currentDishJa="";currentDisplayName=userList[Math.floor(Math.random()*userList.length)];}
+  else{const pool=(defaults[slot]&&defaults[slot].length)?defaults[slot]:allPool;currentDishJa=pool[Math.floor(Math.random()*pool.length)];currentDisplayName=localizedName(currentDishJa);}
+  $("dishName").textContent=currentDisplayName;updateDetailLink(currentDisplayName);show($("v-result"));
+}
+$("langSel").addEventListener("change",e=>setLang(e.target.value));
+$("btnStart").addEventListener("click",()=>show($("v-slot")));
+$("backTop").addEventListener("click",()=>show($("v-top")));
+["btnBF","btnLU","btnDI"].forEach(id=>{$(id).addEventListener("click",()=>{slot=(id==="btnBF")?"bf":(id==="btnLU")?"lu":"di";$("ta").value="";currentDishJa="";currentDisplayName="";show($("v-input"));});});
+$("btnPick").addEventListener("click",pickNow);
+$("backSlotFromInput").addEventListener("click",()=>show($("v-slot")));
+$("backInput").addEventListener("click",()=>show($("v-input")));
+setLang("ja");
+</script>
+</body>
+</html>
